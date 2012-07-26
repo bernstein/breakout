@@ -1,3 +1,14 @@
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  GLutils
+-- Copyright   :  (c) 2012 Andreas-C. Bernstein
+-- License     :  BSD-style (see LICENSE)
+-- Maintainer  :  andreas.bernstein@gmail.com
+--
+-- GL utilities.
+--
+-----------------------------------------------------------------------------
+
 module GLutils
   (
     gens, gen

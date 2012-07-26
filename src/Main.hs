@@ -1,7 +1,18 @@
 {-# LANGUAGE ScopedTypeVariables
   #-}
 
-module Main
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Main
+-- Copyright   :  (c) 2012 Andreas-C. Bernstein
+-- License     :  BSD-style (see LICENSE)
+-- Maintainer  :  andreas.bernstein@gmail.com
+--
+-- Main.
+--
+-----------------------------------------------------------------------------
+
+module Main (main)
 where
 
 import GlutAdapter
