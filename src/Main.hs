@@ -18,6 +18,7 @@ where
 import GlutAdapter
 import Rendering
 import UnitBox
+import ReactiveUtils
 
 import System.Exit (exitSuccess)
 import qualified Data.Active as Active

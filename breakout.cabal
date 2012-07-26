@@ -22,15 +22,17 @@ executable breakout
   other-modules:       GLutils, 
                        UnitBox, 
                        GlutAdapter, 
+                       ReactiveUtils,
                        Rendering
   Build-depends:       base >= 4.2 && < 4.6,
                        mtl >= 2.0 && < 2.2,
                        diagrams-core >= 0.5 && < 0.6,
                        diagrams-lib >= 0.5 && < 0.6,
+                       active >= 0.1 && < 0.2,
+                       vector-space >= 0.7.7 && < 0.9,
                        reactive-banana >= 0.6 && < 0.7,
                        semigroups >= 0.3.4 && < 0.9,
                        OpenGLRaw >= 1.2 && < 1.3,
-                       active >= 0.1 && < 0.2,
                        time >= 1.4 && < 1.5,
                        GLUT >= 2.3 && < 2.4
 
