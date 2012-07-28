@@ -46,10 +46,13 @@ withPrevE :: Event t a -> Event t (a,a)
 withPrevE = filterJust . fmap f . accumE (Nothing,Nothing) . fmap ((\new (prev,_) -> (new,prev)).Just)
   where
     f :: (Maybe a, Maybe b) -> Maybe (a,b)
-    f = uncurry (liftA2 (,))
+withPrevE = withPrevEWith (,)
 
 withPrevEWith :: (a -> a -> b) -> Event t a -> Event t b
-withPrevEWith f e =  fmap (uncurry f) (withPrevE e)
+withPrevEWith f e = filterJust . fst . mapAccum Nothing $ g <$> e
+    where
+    g y Nothing  = (Nothing     , Just y)
+    g y (Just x) = (Just (f y x), Just y)
 
 diffE :: AffineSpace a => Event t a -> Event t (Diff a)
 diffE = withPrevEWith (.-.)
