@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables
+           , FlexibleInstances
   #-}
 
 -----------------------------------------------------------------------------
@@ -49,11 +50,18 @@ main = do
   ctx <- createCtx
   adapt (game ctx)
 
+instance Semigroup (Behavior t Picture) where
+  (<>) = liftA2 (<>)
+
+instance Monoid (Behavior t Picture) where
+  mempty = pure mempty
+  mappend = (<>)
+
 game :: forall t. Ctx -> Behavior t Active.Time -> UI t -> Behavior t (IO ())
 game ctx time ui =
   let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
       scene :: Behavior t Picture
-      scene = (<>) <$> paddleB ui <*> ball
+      scene = mconcat [paddleB ui, ball]
 
       ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
       ballVel = r2 (0.4,0.5) `accumB` collision
