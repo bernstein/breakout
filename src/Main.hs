@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables
            , FlexibleInstances
+           , ViewPatterns
   #-}
 
 -----------------------------------------------------------------------------
@@ -21,6 +22,7 @@ import Rendering
 import UnitBox
 import ReactiveUtils
 
+import Data.Maybe (isJust)
 import Control.Arrow (first,second)
 import System.Exit (exitSuccess)
 import qualified Data.Active as Active
@@ -65,14 +67,23 @@ game ctx time ui =
   let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
 
       scene :: Behavior t Picture
-      scene = mconcat [paddleB ui, ball, pure wallPic]
+      scene = mconcat [paddle, ball, pure wallPic]
 
       -- ball
       ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
       ballVel = r2 (0.4,0.5) `accumB` collision
       ball    = moveTo <$> ballPos <*> pure ballPic
 
-      collision = R.unions [wallHit ballPos (frame ui)]
+      paddle :: Behavior t Picture
+      paddle = moveTo <$> paddlePos <*> pure paddlePic
+
+      paddlePos :: Behavior t P2
+      paddlePos = curry p2 <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure 0
+
+      collision = R.unions [ wallHit ballPos (frame ui)
+                           , paddleHit paddlePos ballPos (frame ui)
+                           ]
+
   in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
 
 display :: Ctx -> Picture -> IO ()
@@ -87,16 +98,15 @@ paddlePic = unitBox # fc blue # scaleY 0.02 # scaleX 0.1
 ballPic :: Picture
 ballPic = unitBox # fc gray # scale 0.04
 
-paddleB :: UI t -> Behavior t Picture
-paddleB ui = translateX <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure paddlePic
+paddleHit :: Behavior t P2 -> Behavior t P2 -> Event t () 
+          -> Event t (Velocity -> Velocity)
+paddleHit paddlePos ballPos frame =
+  let c = colliding paddlePic <$> paddlePos <*> pure ballPic <*> ballPos
+      response v@(unr2 -> (vx,vy)) = if vy < 0 then r2 (vx,-vy) else v
+  in  response <$ whenE c frame
 
 brickPic :: Picture
 brickPic = unitBox # scaleY 0.03 # scaleX 0.15
-
-wallPic :: Picture
-wallPic = moveTo (p2 (0,1.02)) ceilingPic 
-       <> moveTo (p2 (-1.0,0.5)) sidePic
-       <> moveTo (p2 (1.0,0.5)) sidePic
 
 ceilingPic :: Picture
 ceilingPic = unitBox # scaleX 2 # scaleY 0.04 # fc grey
@@ -104,14 +114,36 @@ ceilingPic = unitBox # scaleX 2 # scaleY 0.04 # fc grey
 sidePic :: Picture
 sidePic = unitBox # scaleX 0.04  # fc grey
 
+wallPic :: Picture
+wallPic = moveTo ceilingPos ceilingPic 
+       <> moveTo wallLeftPos sidePic
+       <> moveTo wallRightPos sidePic
+
+ceilingPos,wallLeftPos,wallRightPos :: P2
+ceilingPos = p2 (0,1.02)
+wallLeftPos = p2 (-1.0,0.5)
+wallRightPos = p2 (1.0,0.5)
+
 wallHit :: Behavior t P2 -> Event t () -> Event t (Velocity -> Velocity)
-wallHit ballPos frame = R.unions [top,left,right,bottom]
+wallHit ballPos frame = R.unions [top,left,right]
   where
-    top    = checkWall ((>1.0).snd) (second (negate.abs))
-    left   = checkWall ((< -1.0).fst) (first abs)
-    right  = checkWall ((>1.0).fst) (first (negate.abs))
-    bottom = checkWall ((<0.0).snd) (second abs)
-    checkWall check mod = (r2.mod.unr2) <$ whenE (check.unp2 <$> ballPos) frame
+    cTop   = colliding ceilingPic ceilingPos ballPic <$> ballPos
+    top    = (r2.second (negate.abs).unr2) <$ whenE cTop frame
+
+    cLeft  = colliding sidePic wallLeftPos ballPic <$> ballPos
+    left   = (r2.first abs.unr2) <$ whenE cLeft frame
+
+    cRight = colliding sidePic wallRightPos ballPic <$> ballPos
+    right  = (r2.first (negate.abs).unr2) <$ whenE cRight frame
 
 positionX :: GLUT.Position -> Double
 positionX (GLUT.Position x _) = fromIntegral x
+
+-- work around for bug in boundingBox, for more info:
+-- http://code.google.com/p/diagrams/issues/detail?id=87
+-- will be removed!
+colliding :: Picture -> P2 -> Picture -> P2 -> Bool
+colliding d1 p1 d2 p2 = isJust $ intersection (bbox d1 p1) (bbox d2 p2)
+
+bbox :: Picture -> P2 -> BoundingBox R2
+bbox pic p = moveTo p (boundingBox pic)
