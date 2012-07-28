@@ -38,22 +38,13 @@ data Key = Char Char | SpecialKey GLUT.SpecialKey
 adapt :: (forall t. Behavior t Active.Time -> UI t -> Behavior t (IO ())) -> IO ()
 adapt f = do
   start <- T.getCurrentTime
+  let getTime = Active.toTime . flip T.diffUTCTime start <$> T.getCurrentTime
+
+  -- set up events
   (tickHandler,    tickSink)    <- newAddHandler
   (mouseHandler,   mouseSink)   <- newAddHandler
   (keyHandler,     keySink)     <- newAddHandler
 
-  let getTime = Active.toTime . flip T.diffUTCTime start <$> T.getCurrentTime
-
-  network <- compile $ do
-    eTick    <- fromAddHandler tickHandler
-    bMouse   <- fromChanges (GLUT.Position 0 0) mouseHandler
-    bTime    <- fromPoll getTime
-    eKey     <- fromAddHandler keyHandler
-    bWinWize <- fromPoll (GLUT.get GLUT.windowSize)
-    -- beh    <- f eTick bTime (UI bMouse eKey)
-    let beh = withClearAndSwap <$> f bTime (UI bMouse eKey eTick bWinWize)
-    reactimate (beh <@ eTick)
-  actuate network
   GLUT.passiveMotionCallback GLUT.$= Just mouseSink
   GLUT.motionCallback        GLUT.$= Just mouseSink
   GLUT.keyboardMouseCallback GLUT.$= Just ( \k ks _ _ ->
@@ -64,10 +55,25 @@ adapt f = do
       (GLUT.SpecialKey s,GLUT.Up  ) -> keySink (GLUT.Up  , SpecialKey s)
       _ -> return ()
       )
+
+  -- compile and run event network
+  network <- compile $ do
+    eTick    <- fromAddHandler tickHandler
+    bMouse   <- fromChanges (GLUT.Position 0 0) mouseHandler
+    bTime    <- fromPoll getTime
+    eKey     <- fromAddHandler keyHandler
+    bWinWize <- fromPoll (GLUT.get GLUT.windowSize)
+    -- beh    <- f eTick bTime (UI bMouse eKey)
+    let beh = withClearAndSwap <$> f bTime (UI bMouse eKey eTick bWinWize)
+    reactimate (beh <@ eTick)
+  actuate network
+
+  -- set up important window callbacks
   let resizeScene :: GLUT.Size -> IO ()
       resizeScene (GLUT.Size w 0) = resizeScene (GLUT.Size w 1)
       resizeScene (GLUT.Size w h) = do
-        GL.glViewport 0 0 w h
+        let (w',h') = (fromIntegral w, fromIntegral h)
+        GL.glViewport 0 0 w' h'
         GL.glMatrixMode GL.gl_PROJECTION
         GL.glLoadIdentity
         let (w',h') = (fromIntegral w, fromIntegral h)
@@ -75,7 +81,9 @@ adapt f = do
         GL.glOrtho (-1) 1 (-aspect) aspect (-1) 1
 
   GLUT.reshapeCallback GLUT.$= Just resizeScene
-                                        
+  GLUT.displayCallback GLUT.$= return ()
+
+  -- run main loop                               
   timer 10 (tickSink ())
   GLUT.mainLoop
   
