@@ -63,30 +63,16 @@ instance Monoid (Behavior t Picture) where
 game :: forall t. Ctx -> Behavior t Active.Time -> UI t -> Behavior t (IO ())
 game ctx time ui =
   let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
+
       scene :: Behavior t Picture
-      scene = mconcat [paddleB ui, ball, walls]
+      scene = mconcat [paddleB ui, ball, pure wallPic]
 
       -- ball
       ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
       ballVel = r2 (0.4,0.5) `accumB` collision
       ball    = moveTo <$> ballPos <*> pure ballPic
 
-      collision = R.unions [wallHit]
-
-      -- walls
-      walls = pure $ moveTo (p2 (0,1.02)) ceilingPic 
-                  <> moveTo (p2 (-1.0,0.5)) sidePic
-                  <> moveTo (p2 (1.0,0.5)) sidePic
-
-      wallHit :: Event t (Velocity -> Velocity)
-      wallHit = R.unions [top,left,right,bottom]
-
-      top    = checkWall ((>1.0).snd) (second (negate.abs))
-      left   = checkWall ((< -1.0).fst) (first abs)
-      right  = checkWall ((>1.0).fst) (first (negate.abs))
-      bottom = checkWall ((<0.0).snd) (second abs)
-      checkWall check mod = (r2.mod.unr2) <$ whenE (check.unp2 <$> ballPos) (frame ui)
-
+      collision = R.unions [wallHit ballPos (frame ui)]
   in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
 
 display :: Ctx -> Picture -> IO ()
@@ -107,11 +93,25 @@ paddleB ui = translateX <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure 
 brickPic :: Picture
 brickPic = unitBox # scaleY 0.03 # scaleX 0.15
 
+wallPic :: Picture
+wallPic = moveTo (p2 (0,1.02)) ceilingPic 
+       <> moveTo (p2 (-1.0,0.5)) sidePic
+       <> moveTo (p2 (1.0,0.5)) sidePic
+
 ceilingPic :: Picture
 ceilingPic = unitBox # scaleX 2 # scaleY 0.04 # fc grey
 
 sidePic :: Picture
 sidePic = unitBox # scaleX 0.04  # fc grey
+
+wallHit :: Behavior t P2 -> Event t () -> Event t (Velocity -> Velocity)
+wallHit ballPos frame = R.unions [top,left,right,bottom]
+  where
+    top    = checkWall ((>1.0).snd) (second (negate.abs))
+    left   = checkWall ((< -1.0).fst) (first abs)
+    right  = checkWall ((>1.0).fst) (first (negate.abs))
+    bottom = checkWall ((<0.0).snd) (second abs)
+    checkWall check mod = (r2.mod.unr2) <$ whenE (check.unp2 <$> ballPos) frame
 
 positionX :: GLUT.Position -> Double
 positionX (GLUT.Position x _) = fromIntegral x
