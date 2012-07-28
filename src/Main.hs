@@ -67,7 +67,9 @@ game ctx time ui =
   let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
 
       scene :: Behavior t Picture
-      scene = mconcat [paddle, ball, pure wallPic]
+      scene = mconcat [ paddle, ball
+                      , pure wallPic
+                      , brick]
 
       -- ball
       ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
@@ -80,8 +82,13 @@ game ctx time ui =
       paddlePos :: Behavior t P2
       paddlePos = curry p2 <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure 0
 
+      brick :: Behavior t Picture
+      brick = moveTo brickPos brickPic `stepper` (mempty <$ smashed)
+      smashed = brickHit ballPos (frame ui)
+
       collision = R.unions [ wallHit ballPos (frame ui)
                            , paddleHit paddlePos ballPos (frame ui)
+                           , smashed
                            ]
 
   in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
@@ -106,7 +113,16 @@ paddleHit paddlePos ballPos frame =
   in  response <$ whenE c frame
 
 brickPic :: Picture
-brickPic = unitBox # scaleY 0.03 # scaleX 0.15
+brickPic = unitBox # scaleY 0.03 # scaleX 0.2 # fc yellow
+
+brickPos :: P2
+brickPos = p2 (-0.8,0.6)
+
+brickHit :: Behavior t P2 -> Event t () -> Event t (Velocity -> Velocity)
+brickHit ballPos frame = once response
+  where
+    c   = whenE (colliding brickPic brickPos ballPic <$> ballPos) frame
+    response = (r2.second (negate.abs).unr2) <$ c
 
 ceilingPic :: Picture
 ceilingPic = unitBox # scaleX 2 # scaleY 0.04 # fc grey
