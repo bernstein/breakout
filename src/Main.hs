@@ -23,7 +23,7 @@ import ReactiveUtils
 import System.Exit (exitSuccess)
 import qualified Data.Active as Active
 import Diagrams.Prelude
-import Reactive.Banana
+import Reactive.Banana as R
 import qualified Graphics.UI.GLUT as GLUT
 import qualified Graphics.Rendering.OpenGL.Raw as GL
 
@@ -53,7 +53,13 @@ game :: forall t. Ctx -> Behavior t Active.Time -> UI t -> Behavior t (IO ())
 game ctx time ui =
   let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
       scene :: Behavior t Picture
-      scene = paddleB ui
+      scene = (<>) <$> paddleB ui <*> ball
+
+      ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
+      ballVel = r2 (0.4,0.5) `accumB` collision
+      ball    = moveTo <$> ballPos <*> pure ballPic
+
+      collision = R.unions [never]
   in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
 
 display :: Ctx -> Picture -> IO ()
@@ -64,6 +70,9 @@ fitMouse (GLUT.Size w _) (GLUT.Position x _) = 2*(fromIntegral x / fromIntegral 
   
 paddlePic :: Picture
 paddlePic = unitBox # fc blue # scaleY 0.02 # scaleX 0.1
+
+ballPic :: Picture
+ballPic = unitBox # fc gray # scale 0.04
 
 paddleB :: UI t -> Behavior t Picture
 paddleB ui = translateX <$> (fitMouse <$> windowSize ui <*> mouse ui) <*> pure paddlePic
