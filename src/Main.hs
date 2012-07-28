@@ -65,8 +65,8 @@ game ctx time ui =
 display :: Ctx -> Picture -> IO ()
 display ctx dia = renderPic dia ctx
 
-fitMouse :: GLUT.Size -> GLUT.Position -> Double
-fitMouse (GLUT.Size w _) (GLUT.Position x _) = 2*(fromIntegral x / fromIntegral w) - 1
+fitMouseX :: GLUT.Size -> GLUT.Position -> Double
+fitMouseX (GLUT.Size w _) (GLUT.Position x _) = 2*(fromIntegral x / fromIntegral w) - 1
   
 paddlePic :: Picture
 paddlePic = unitBox # fc blue # scaleY 0.02 # scaleX 0.1
@@ -75,7 +75,7 @@ ballPic :: Picture
 ballPic = unitBox # fc gray # scale 0.04
 
 paddleB :: UI t -> Behavior t Picture
-paddleB ui = translateX <$> (fitMouse <$> windowSize ui <*> mouse ui) <*> pure paddlePic
+paddleB ui = translateX <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure paddlePic
 
 brickPic :: Picture
 brickPic = unitBox # scaleY 0.03 # scaleX 0.15
