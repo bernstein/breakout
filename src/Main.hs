@@ -21,6 +21,7 @@ import Rendering
 import UnitBox
 import ReactiveUtils
 
+import Control.Arrow (first,second)
 import System.Exit (exitSuccess)
 import qualified Data.Active as Active
 import Diagrams.Prelude
@@ -50,6 +51,8 @@ main = do
   ctx <- createCtx
   adapt (game ctx)
 
+type Velocity = R2
+
 instance Semigroup (Behavior t Picture) where
   (<>) = liftA2 (<>)
 
@@ -67,7 +70,18 @@ game ctx time ui =
       ballVel = r2 (0.4,0.5) `accumB` collision
       ball    = moveTo <$> ballPos <*> pure ballPic
 
-      collision = R.unions [never]
+      collision = R.unions [wallHit]
+
+      wallHit :: Event t (Velocity -> Velocity)
+      wallHit = R.unions [
+                    checkWall ((>1.0).snd) (second (negate.abs)) -- top
+                  , checkWall ((< -1.0).fst) (first abs)         -- left
+                  , checkWall ((>1.0).fst) (first (negate.abs))  -- right
+                  , checkWall ((<0.0).snd) (second abs)          -- bottom
+                  ]
+
+      checkWall check mod = (r2.mod.unr2) <$ whenE (check.unp2 <$> ballPos) (frame ui)
+
   in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
 
 display :: Ctx -> Picture -> IO ()
