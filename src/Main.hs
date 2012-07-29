@@ -125,8 +125,10 @@ brickHit p ballPos frame = once response
     c   = whenE (colliding brickPic p ballPic <$> ballPos) frame
     response = (r2.second (negate.abs).unr2) <$ c
 
+smash :: Behavior t P2 -> Event t () -> [Event t (Velocity -> Velocity)]
 smash ballPos frame = map (\p -> brickHit p ballPos frame) brickPositions
 
+bricks :: [Event t (Velocity -> Velocity)] -> Behavior t Picture
 bricks smashed = mconcat $ zipWith brick brickPositions smashed
 
 ceilingPic :: Picture
