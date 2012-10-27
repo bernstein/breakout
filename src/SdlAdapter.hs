@@ -6,7 +6,7 @@
 -- Copyright   :  (c) Andreas-Christoph Bernstein 2012
 -- License     :  BSD3
 -- 
--- Maintainer  :  andreas.bernstein@glemail.com
+-- Maintainer  :  andreas.bernstein@gmail.com
 -- Stability   :  experimental
 -- 
 -- Connect Reactive.Banana + SDL
