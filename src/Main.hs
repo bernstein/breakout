@@ -1,7 +1,7 @@
-{-# LANGUAGE ScopedTypeVariables
-           , FlexibleInstances
-           , ViewPatterns
-  #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -17,7 +17,7 @@
 module Main (main)
 where
 
-import GlutAdapter
+import SdlAdapter
 import Rendering
 import UnitBox
 import ReactiveUtils
@@ -28,21 +28,20 @@ import System.Exit (exitSuccess)
 import qualified Data.Active as Active
 import Diagrams.Prelude
 import Reactive.Banana as R
-import qualified Graphics.UI.GLUT as GLUT
+import qualified Graphics.UI.SDL as SDL
+--import qualified Graphics.UI.GLUT as GLUT
 import qualified Graphics.Rendering.OpenGL.Raw as GL
 
-main :: IO ()
-main = do
-  _ <- GLUT.getArgsAndInitialize
-
-  GLUT.initialDisplayMode GLUT.$= [ GLUT.DoubleBuffered
-                                , GLUT.RGBAMode
-                                , GLUT.WithDepthBuffer
-                                , GLUT.WithAlphaComponent ] 
-  GLUT.initialWindowSize GLUT.$= GLUT.Size 800 600
-  _ <- GLUT.createWindow "paddleball"
-  GL.glViewport 0 0 800 600
-  let aspect = 600/800
+initSDL :: String -> Int -> Int -> IO SDL.Surface
+initSDL title w h = do
+  SDL.init [SDL.InitVideo]
+  -- s <- SDL.setVideoMode w h 32 [SDL.OpenGL, SDL.Resizable, SDL.DoubleBuf,SDL.Fullscreen]
+  --s <- SDL.setVideoMode w h 32 [SDL.OpenGL, SDL.DoubleBuf,SDL.Fullscreen]
+  s <- SDL.setVideoMode w h 32 [SDL.OpenGL, SDL.DoubleBuf {-,SDL.NoFrame -} ]
+  SDL.glSetAttribute SDL.glDoubleBuffer 1
+  SDL.setCaption title title
+  GL.glViewport 0 0 (fromIntegral w) (fromIntegral h)
+  let aspect = fromIntegral w / fromIntegral h
   GL.glOrtho (-1) 1 (-aspect) aspect (-1) 1
   GL.glClearColor 1 1 1 1
   GL.glClearDepth 1
@@ -50,8 +49,11 @@ main = do
   GL.glEnable GL.gl_BLEND
   GL.glBlendFunc GL.gl_SRC_ALPHA GL.gl_ONE_MINUS_SRC_ALPHA
 
-  ctx <- createCtx
-  adapt (game ctx)
+  return s
+
+
+main :: IO ()
+main = adapt dt game
 
 type Velocity = R2
 
@@ -62,9 +64,19 @@ instance Monoid (Behavior t Picture) where
   mempty = pure mempty
   mappend = (<>)
 
-game :: forall t. Ctx -> Behavior t Active.Time -> UI t -> Behavior t (IO ())
-game ctx time ui =
-  let quit = exitSuccess <$ filterE (\(_,k) -> (k == GlutAdapter.Char '\27')) (key ui)
+fps :: Integer
+fps = 60
+
+dt :: Integer
+dt = 1000 `div` fps
+
+game :: forall t. GameNetworkDescription t
+game frame time ui = do
+  let title = "a breakout clone"
+      (w,h) = (800,800)
+  s <- liftIO $ initSDL title w h
+  ctx <- liftIO createCtx
+  let quit = exitSuccess <$ filterE (\(_,k) -> (k == SDL.SDLK_ESCAPE)) (key ui)
 
       scene :: Behavior t Picture
       scene = mconcat [ paddle, ball
@@ -72,7 +84,7 @@ game ctx time ui =
                       , bricks smashed]
 
       -- ball
-      ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame ui) ballVel
+      ballPos = (p2 (0,0.5) .+^) <$> integral (time <@ frame) ballVel
       ballVel = r2 (0.4,0.5) `accumB` collision
       ball    = moveTo <$> ballPos <*> pure ballPic
 
@@ -80,22 +92,22 @@ game ctx time ui =
       paddle = moveTo <$> paddlePos <*> pure paddlePic
 
       paddlePos :: Behavior t P2
-      paddlePos = curry p2 <$> (fitMouseX <$> windowSize ui <*> mouse ui) <*> pure 0
+      paddlePos = curry p2 <$> (fitMouseX w <$> mouse ui) <*> pure 0
 
-      smashed = smash ballPos (frame ui)
+      smashed = smash ballPos frame
 
-      collision = R.unions [ wallHit ballPos (frame ui)
-                           , paddleHit paddlePos ballPos (frame ui)
+      collision = R.unions [ wallHit ballPos frame
+                           , paddleHit paddlePos ballPos frame
                            , R.unions smashed
                            ]
 
-  in  (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
+  return $ (>>) <$> (display ctx <$> scene) <*> stepper (return ()) quit
 
 display :: Ctx -> Picture -> IO ()
 display ctx dia = renderPic dia ctx
 
-fitMouseX :: GLUT.Size -> GLUT.Position -> Double
-fitMouseX (GLUT.Size w _) (GLUT.Position x _) = 2*(fromIntegral x / fromIntegral w) - 1
+fitMouseX :: Int -> (Int, Int) -> Double
+fitMouseX w (x,_) = 2*(fromIntegral x / fromIntegral w) - 1
   
 paddlePic :: Picture
 paddlePic = unitBox # fc blue # scaleY 0.02 # scaleX 0.1
@@ -118,6 +130,7 @@ brick p e = moveTo p brickPic `stepper` (mempty <$ e)
 
 brickPositions :: [P2]
 brickPositions = map (p2 . flip (,) 0.98) [-0.9,-0.7..0.9]
+              ++ map (p2 . flip (,) 0.94) [-0.9,-0.7..0.9]
 
 brickHit :: P2 -> Behavior t P2 -> Event t () -> Event t (Velocity -> Velocity)
 brickHit p ballPos frame = once response
@@ -159,8 +172,8 @@ wallHit ballPos frame = R.unions [top,left,right]
     cRight = colliding sidePic wallRightPos ballPic <$> ballPos
     right  = (r2.first (negate.abs).unr2) <$ whenE cRight frame
 
-positionX :: GLUT.Position -> Double
-positionX (GLUT.Position x _) = fromIntegral x
+reflect :: R2 -> R2 -> R2
+reflect n i = i ^+^ negateV ((2.0 * (n <.> i)) *^ n)
 
 -- work around for bug in boundingBox, for more info:
 -- http://code.google.com/p/diagrams/issues/detail?id=87
