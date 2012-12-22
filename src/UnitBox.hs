@@ -20,7 +20,8 @@ module UnitBox
        , unitBox
        ) where
 
-import Graphics.Rendering.Diagrams
+--import Graphics.Rendering.Diagrams
+import Diagrams.Core
 import Diagrams.TwoD.Types
 import Diagrams.TwoD.Shapes (unitSquare)
 import Diagrams.Path (Path)
@@ -36,6 +37,7 @@ instance Transformable UnitBox where
 unitBox :: (Backend b R2, Renderable UnitBox b) => Diagram b R2
 unitBox = mkQD (Prim $ UnitBox mempty)
                 (getEnvelope r)
+                mempty
                 mempty
                 (Query quadQuery)
   where quadQuery (unp2 -> (x,y)) = Any $ abs x <= 1 && abs y <= 1

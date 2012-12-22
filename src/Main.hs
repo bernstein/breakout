@@ -179,7 +179,7 @@ reflect n i = i ^+^ negateV ((2.0 * (n <.> i)) *^ n)
 -- http://code.google.com/p/diagrams/issues/detail?id=87
 -- will be removed!
 colliding :: Picture -> P2 -> Picture -> P2 -> Bool
-colliding d1 p1 d2 p2 = isJust $ intersection (bbox d1 p1) (bbox d2 p2)
+colliding d1 p1 d2 p2 = not $ isEmptyBox $ intersection (bbox d1 p1) (bbox d2 p2)
 
 bbox :: Picture -> P2 -> BoundingBox R2
 bbox pic p = moveTo p (boundingBox pic)
